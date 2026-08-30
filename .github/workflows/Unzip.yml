@@ -65,7 +65,7 @@ jobs:
           else
             echo "ERROR: pubspec.yaml not found."
 
-            echo "Searching for pubspec.yaml:"
+            echo "Searching:"
             find extracted -name pubspec.yaml -print
 
             exit 1
@@ -98,7 +98,7 @@ jobs:
 
           echo "Source ZIP removed."
 
-      - name: Verify project
+      - name: Verify complete project
         run: |
           echo "Checking Flutter project..."
 
@@ -118,12 +118,11 @@ jobs:
               -maxdepth 1 \
               -type f \
               -print
-          else
-            echo "No .github/workflows directory found."
           fi
 
           echo ""
-          echo "Project files:"
+          echo "Project structure:"
+
           find . -maxdepth 3 -type f \
             ! -path "./.git/*" | sort | head -300
 
@@ -147,6 +146,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "ERROR: GH_TOKEN secret is not configured."
+            exit 1
+          fi
+
           git remote set-url origin \
             "https://x-access-token:${GH_TOKEN}@github.com/gshabbir790/VoiceStudio.git"
 
