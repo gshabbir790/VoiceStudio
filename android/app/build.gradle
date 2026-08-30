@@ -1,5 +1,12 @@
+plugins {
+    id "com.android.application"
+    id "org.jetbrains.kotlin.android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
+
 if (localPropertiesFile.exists()) {
     localPropertiesFile.withReader('UTF-8') { reader ->
         localProperties.load(reader)
@@ -7,23 +14,20 @@ if (localPropertiesFile.exists()) {
 }
 
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+
 if (flutterVersionCode == null) {
     flutterVersionCode = '1'
 }
 
 def flutterVersionName = localProperties.getProperty('flutter.versionName')
+
 if (flutterVersionName == null) {
     flutterVersionName = '1.0.0'
 }
 
-plugins {
-    id "com.android.application"
-    id "org.jetbrains.kotlin.android"
-    id "dev.flutter.flutter-gradle-plugin"
-}
-
 android {
     namespace "com.gshabbir.voicestudio"
+
     compileSdk flutter.compileSdkVersion
     ndkVersion flutter.ndkVersion
 
@@ -37,20 +41,23 @@ android {
     }
 
     defaultConfig {
-        // Fixed, single source of truth for the app's identity — matches
-        // the Play Console listing and must never be changed after first
-        // release, or updates will be treated as a different app.
+        // Fixed, single source of truth for the app's identity.
+        // Must not be changed after first release.
         applicationId "com.gshabbir.voicestudio"
+
         minSdkVersion 23
         targetSdkVersion flutter.targetSdkVersion
+
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+
         multiDexEnabled true
     }
 
     signingConfigs {
         release {
             def keystorePath = System.getenv("KEYSTORE_PATH")
+
             if (keystorePath) {
                 storeFile file(keystorePath)
                 storePassword System.getenv("KEYSTORE_PASSWORD")
@@ -62,15 +69,21 @@ android {
 
     buildTypes {
         release {
-            // Falls back to the debug key automatically when no release
-            // keystore secrets are present (e.g. a fork building without
-            // the repo's signing secrets), so `flutter build apk` never
-            // breaks — CI supplies the real keystore via env vars.
-            signingConfig System.getenv("KEYSTORE_PATH") ? signingConfigs.release : signingConfigs.debug
+            // Use release keystore when CI secrets are available.
+            // Otherwise fall back to debug signing.
+            signingConfig System.getenv("KEYSTORE_PATH") ?
+                    signingConfigs.release :
+                    signingConfigs.debug
+
             minifyEnabled true
             shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+            proguardFiles(
+                getDefaultProguardFile('proguard-android-optimize.txt'),
+                'proguard-rules.pro'
+            )
         }
+
         debug {
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
