@@ -1,0 +1,89 @@
+name: Release Android APK
+
+# Push a tag like "v1.0.0" to trigger a build + GitHub Release.
+# You can also run it manually from the Actions tab (workflow_dispatch).
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: "Release name (optional)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # The wrapper jar is intentionally not committed (see .gitignore) —
+      # generating it fresh here means the build always uses a clean,
+      # correctly-matched wrapper instead of a stale binary in git.
+      - name: Generate Gradle wrapper
+        run: |
+          cd android
+          gradle wrapper --gradle-version 8.7 --distribution-type all
+          chmod +x gradlew
+
+      - name: Generate launcher icons
+        run: dart run flutter_launcher_icons
+
+      - name: Generate native splash screen
+        run: dart run flutter_native_splash:create
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos || true
+
+      - name: Decode release keystore (if configured)
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > upload-keystore.jks
+          echo "KEYSTORE_PATH=$(pwd)/upload-keystore.jks" >> "$GITHUB_ENV"
+          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> "$GITHUB_ENV"
+
+      - name: Build release APK (per ABI, smaller downloads)
+        run: flutter build apk --release --split-per-abi
+
+      - name: Build release APK (universal, fallback)
+        run: flutter build apk --release
+
+      - name: Build App Bundle (for Play Store)
+        run: flutter build appbundle --release
+
+      - name: Determine version
+        id: ver
+        run: echo "name=${GITHUB_REF_NAME:-manual-build}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.event.inputs.release_name || steps.ver.outputs.name }}
+          generate_release_notes: true
+          files: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab

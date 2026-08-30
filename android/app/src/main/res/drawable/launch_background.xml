@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Solid brand background shown for the brief instant before Flutter
+     draws its first frame. flutter_native_splash overwrites this with
+     the generated logo version when `dart run flutter_native_splash:create`
+     is run (see the release workflow). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/launch_background" />
+</layer-list>

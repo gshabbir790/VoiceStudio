@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Explicitly exclude the secure key store from any device backup —
+         the Gemini API key must never leave this device via a cloud
+         backup/restore. -->
+    <exclude domain="sharedpref" path="FlutterSecureStorage" />
+</full-backup-content>
