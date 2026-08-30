@@ -5,6 +5,8 @@ on:
 
 permissions:
   contents: write
+  actions: write
+  workflows: write
 
 jobs:
   unzip-and-push:
@@ -13,71 +15,127 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Find Voice Studio ZIP
         run: |
-          find . -maxdepth 2 -type f -iname "voice_studio_flutter.zip" -print
+          echo "Searching for voice_studio_flutter.zip..."
 
-      - name: Unzip Voice Studio Flutter
-        run: |
-          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "voice_studio_flutter.zip" | head -n 1)
+          ZIP_FILE=$(find . -maxdepth 2 -type f \
+            -iname "voice_studio_flutter.zip" | head -n 1)
 
           if [ -z "$ZIP_FILE" ]; then
-            echo "voice_studio_flutter.zip not found!"
+            echo "ERROR: voice_studio_flutter.zip not found!"
             exit 1
           fi
 
-          echo "Using: $ZIP_FILE"
+          echo "Found ZIP: $ZIP_FILE"
 
+      - name: Unzip Voice Studio Flutter
+        run: |
+          ZIP_FILE=$(find . -maxdepth 2 -type f \
+            -iname "voice_studio_flutter.zip" | head -n 1)
+
+          rm -rf extracted
           mkdir -p extracted
+
+          echo "Extracting: $ZIP_FILE"
+
           unzip -o "$ZIP_FILE" -d extracted
 
-          echo "Extracted files:"
-          find extracted -maxdepth 3 -type f | head -100
+          echo "Extraction completed."
 
-      - name: Move project to repository root
+          echo "Top-level extracted structure:"
+          find extracted -maxdepth 2 -print | head -200
+
+      - name: Detect Flutter project folder
         run: |
-          shopt -s dotglob
-
           SOURCE="extracted"
 
-          # Handle ZIPs containing common Flutter project folders
-          if [ -d "extracted/voice_studio_flutter" ]; then
+          if [ -f "extracted/pubspec.yaml" ]; then
+            SOURCE="extracted"
+
+          elif [ -f "extracted/voice_studio_flutter/pubspec.yaml" ]; then
             SOURCE="extracted/voice_studio_flutter"
-          elif [ -d "extracted/voice_studio_flutter-main" ]; then
+
+          elif [ -f "extracted/voice_studio_flutter-main/pubspec.yaml" ]; then
             SOURCE="extracted/voice_studio_flutter-main"
-          elif [ -d "extracted/VoiceStudio" ]; then
+
+          elif [ -f "extracted/VoiceStudio/pubspec.yaml" ]; then
             SOURCE="extracted/VoiceStudio"
+
+          else
+            echo "ERROR: Flutter pubspec.yaml not found."
+            echo "Searching extracted files..."
+
+            find extracted -name pubspec.yaml -print
+
+            exit 1
           fi
 
-          echo "Project source: $SOURCE"
+          echo "Detected project source: $SOURCE"
 
-          # Copy project files into repository root
+          echo "SOURCE=$SOURCE" >> "$GITHUB_ENV"
+
+      - name: Copy complete project
+        run: |
+          shopt -s dotglob nullglob
+
+          echo "Copying complete project from:"
+          echo "$SOURCE"
+
           cp -a "$SOURCE"/. .
 
+          echo "Project copied successfully."
+
+      - name: Remove extracted directory
+        run: |
           rm -rf extracted
 
       - name: Remove ZIP
         run: |
-          find . -maxdepth 2 -type f -iname "voice_studio_flutter.zip" -delete
-
-      - name: Show project structure
-        run: |
-          echo "Repository structure:"
           find . -maxdepth 2 -type f \
-            ! -path "./.git/*" | sort | head -200
+            -iname "voice_studio_flutter.zip" \
+            -delete
 
-      - name: Commit and push
+          echo "ZIP removed after extraction."
+
+      - name: Verify complete Flutter project
+        run: |
+          echo "Checking important project files..."
+
+          test -f pubspec.yaml
+          test -d lib
+          test -d android
+
+          echo "pubspec.yaml: OK"
+          echo "lib/: OK"
+          echo "android/: OK"
+
+          echo ""
+          echo "GitHub workflow files:"
+          find .github/workflows -maxdepth 1 -type f -print 2>/dev/null || true
+
+          echo ""
+          echo "Project structure:"
+          find . -maxdepth 3 -type f \
+            ! -path "./.git/*" | sort | head -300
+
+      - name: Commit complete project
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add .
+          git add -A
 
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
           fi
 
-          git commit -m "Unzip Voice Studio Flutter project into repository"
-          git push
+          git commit -m "Import complete Voice Studio Flutter project"
+
+      - name: Push complete project
+        run: |
+          git push origin HEAD:main
