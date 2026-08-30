@@ -1,109 +1,41 @@
 plugins {
-    id "com.android.application"
-    id "org.jetbrains.kotlin.android"
-    id "dev.flutter.flutter-gradle-plugin"
-}
-
-def localProperties = new Properties()
-def localPropertiesFile = rootProject.file('local.properties')
-
-if (localPropertiesFile.exists()) {
-    localPropertiesFile.withReader('UTF-8') { reader ->
-        localProperties.load(reader)
-    }
-}
-
-def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-
-if (flutterVersionCode == null) {
-    flutterVersionCode = '1'
-}
-
-def flutterVersionName = localProperties.getProperty('flutter.versionName')
-
-if (flutterVersionName == null) {
-    flutterVersionName = '1.0.0'
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'dev.flutter.flutter-gradle-plugin'
 }
 
 android {
-    namespace "com.gshabbir.voicestudio"
+    namespace 'com.gshabbir.ocrscanner'
+    compileSdk 36
+    ndkVersion "28.2.13676358"
 
-    compileSdk flutter.compileSdkVersion
-    ndkVersion flutter.ndkVersion
+    defaultConfig {
+        applicationId 'com.gshabbir.ocrscanner'
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName '1.0.0'
+    }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_11
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = "11"
-    }
-
-    defaultConfig {
-        // Fixed, single source of truth for the app's identity.
-        // Must not be changed after first release.
-        applicationId "com.gshabbir.voicestudio"
-
-        minSdkVersion 23
-        targetSdkVersion flutter.targetSdkVersion
-
-        versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
-
-        multiDexEnabled true
-    }
-
-    signingConfigs {
-        release {
-            def keystorePath = System.getenv("KEYSTORE_PATH")
-
-            if (keystorePath) {
-                storeFile file(keystorePath)
-                storePassword System.getenv("KEYSTORE_PASSWORD")
-                keyAlias System.getenv("KEY_ALIAS") ?: "upload"
-                keyPassword System.getenv("KEY_PASSWORD")
-            }
-        }
+        jvmTarget = "17"
     }
 
     buildTypes {
         release {
-            // Use release keystore when CI secrets are available.
-            // Otherwise fall back to debug signing.
-            signingConfig System.getenv("KEYSTORE_PATH") ?
-                    signingConfigs.release :
-                    signingConfigs.debug
-
+            signingConfig signingConfigs.debug
             minifyEnabled true
             shrinkResources true
-
-            proguardFiles(
-                getDefaultProguardFile('proguard-android-optimize.txt'),
-                'proguard-rules.pro'
-            )
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
-
-        debug {
-            applicationIdSuffix ".debug"
-            versionNameSuffix "-debug"
-        }
-    }
-
-    buildFeatures {
-        buildConfig true
-    }
-
-    lint {
-        checkReleaseBuilds false
-        disable 'InvalidPackage'
     }
 }
 
 flutter {
     source '../..'
-}
-
-dependencies {
-    implementation "androidx.multidex:multidex:2.0.1"
 }
