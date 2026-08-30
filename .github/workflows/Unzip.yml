@@ -15,6 +15,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN }}
 
       - name: Find Voice Studio ZIP
         run: |
@@ -65,13 +66,12 @@ jobs:
           else
             echo "ERROR: pubspec.yaml not found."
 
-            echo "Searching:"
             find extracted -name pubspec.yaml -print
 
             exit 1
           fi
 
-          echo "Flutter project detected at:"
+          echo "Flutter project detected:"
           echo "$SOURCE"
 
           echo "SOURCE=$SOURCE" >> "$GITHUB_ENV"
@@ -111,7 +111,7 @@ jobs:
           echo "android/: OK"
 
           echo ""
-          echo "Workflow files from ZIP:"
+          echo "Workflow files:"
 
           if [ -d ".github/workflows" ]; then
             find .github/workflows \
@@ -147,11 +147,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           if [ -z "$GH_TOKEN" ]; then
-            echo "ERROR: GH_TOKEN secret is not configured."
+            echo "ERROR: GH_TOKEN secret is missing."
             exit 1
           fi
 
+          echo "Configuring authenticated Git remote..."
+
           git remote set-url origin \
             "https://x-access-token:${GH_TOKEN}@github.com/gshabbir790/VoiceStudio.git"
+
+          echo "Pushing complete project..."
 
           git push origin HEAD:main
