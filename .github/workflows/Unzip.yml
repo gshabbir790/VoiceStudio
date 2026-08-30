@@ -1,0 +1,83 @@
+name: Unzip Voice Studio Flutter and Push
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unzip-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find Voice Studio ZIP
+        run: |
+          find . -maxdepth 2 -type f -iname "voice_studio_flutter.zip" -print
+
+      - name: Unzip Voice Studio Flutter
+        run: |
+          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "voice_studio_flutter.zip" | head -n 1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "voice_studio_flutter.zip not found!"
+            exit 1
+          fi
+
+          echo "Using: $ZIP_FILE"
+
+          mkdir -p extracted
+          unzip -o "$ZIP_FILE" -d extracted
+
+          echo "Extracted files:"
+          find extracted -maxdepth 3 -type f | head -100
+
+      - name: Move project to repository root
+        run: |
+          shopt -s dotglob
+
+          SOURCE="extracted"
+
+          # Handle ZIPs containing common Flutter project folders
+          if [ -d "extracted/voice_studio_flutter" ]; then
+            SOURCE="extracted/voice_studio_flutter"
+          elif [ -d "extracted/voice_studio_flutter-main" ]; then
+            SOURCE="extracted/voice_studio_flutter-main"
+          elif [ -d "extracted/VoiceStudio" ]; then
+            SOURCE="extracted/VoiceStudio"
+          fi
+
+          echo "Project source: $SOURCE"
+
+          # Copy project files into repository root
+          cp -a "$SOURCE"/. .
+
+          rm -rf extracted
+
+      - name: Remove ZIP
+        run: |
+          find . -maxdepth 2 -type f -iname "voice_studio_flutter.zip" -delete
+
+      - name: Show project structure
+        run: |
+          echo "Repository structure:"
+          find . -maxdepth 2 -type f \
+            ! -path "./.git/*" | sort | head -200
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add .
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Unzip Voice Studio Flutter project into repository"
+          git push
