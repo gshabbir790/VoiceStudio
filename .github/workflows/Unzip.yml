@@ -5,8 +5,6 @@ on:
 
 permissions:
   contents: write
-  actions: write
-  workflows: write
 
 jobs:
   unzip-and-push:
@@ -40,18 +38,17 @@ jobs:
           rm -rf extracted
           mkdir -p extracted
 
-          echo "Extracting: $ZIP_FILE"
+          echo "Extracting project..."
 
           unzip -o "$ZIP_FILE" -d extracted
 
           echo "Extraction completed."
 
-          echo "Top-level extracted structure:"
-          find extracted -maxdepth 2 -print | head -200
+          find extracted -maxdepth 3 -type f | head -200
 
-      - name: Detect Flutter project folder
+      - name: Detect Flutter project
         run: |
-          SOURCE="extracted"
+          SOURCE=""
 
           if [ -f "extracted/pubspec.yaml" ]; then
             SOURCE="extracted"
@@ -66,15 +63,16 @@ jobs:
             SOURCE="extracted/VoiceStudio"
 
           else
-            echo "ERROR: Flutter pubspec.yaml not found."
-            echo "Searching extracted files..."
+            echo "ERROR: pubspec.yaml not found."
 
+            echo "Searching for pubspec.yaml:"
             find extracted -name pubspec.yaml -print
 
             exit 1
           fi
 
-          echo "Detected project source: $SOURCE"
+          echo "Flutter project detected at:"
+          echo "$SOURCE"
 
           echo "SOURCE=$SOURCE" >> "$GITHUB_ENV"
 
@@ -82,28 +80,27 @@ jobs:
         run: |
           shopt -s dotglob nullglob
 
-          echo "Copying complete project from:"
-          echo "$SOURCE"
+          echo "Copying COMPLETE project..."
 
           cp -a "$SOURCE"/. .
 
-          echo "Project copied successfully."
+          echo "Complete project copied."
 
-      - name: Remove extracted directory
+      - name: Remove extraction folder
         run: |
           rm -rf extracted
 
-      - name: Remove ZIP
+      - name: Remove source ZIP
         run: |
           find . -maxdepth 2 -type f \
             -iname "voice_studio_flutter.zip" \
             -delete
 
-          echo "ZIP removed after extraction."
+          echo "Source ZIP removed."
 
-      - name: Verify complete Flutter project
+      - name: Verify project
         run: |
-          echo "Checking important project files..."
+          echo "Checking Flutter project..."
 
           test -f pubspec.yaml
           test -d lib
@@ -114,19 +111,29 @@ jobs:
           echo "android/: OK"
 
           echo ""
-          echo "GitHub workflow files:"
-          find .github/workflows -maxdepth 1 -type f -print 2>/dev/null || true
+          echo "Workflow files from ZIP:"
+
+          if [ -d ".github/workflows" ]; then
+            find .github/workflows \
+              -maxdepth 1 \
+              -type f \
+              -print
+          else
+            echo "No .github/workflows directory found."
+          fi
 
           echo ""
-          echo "Project structure:"
+          echo "Project files:"
           find . -maxdepth 3 -type f \
             ! -path "./.git/*" | sort | head -300
 
-      - name: Commit complete project
+      - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Commit complete project
+        run: |
           git add -A
 
           if git diff --cached --quiet; then
@@ -136,6 +143,11 @@ jobs:
 
           git commit -m "Import complete Voice Studio Flutter project"
 
-      - name: Push complete project
+      - name: Push complete project using PAT
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
+          git remote set-url origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/gshabbir790/VoiceStudio.git"
+
           git push origin HEAD:main
