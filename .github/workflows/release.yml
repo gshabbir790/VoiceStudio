@@ -3,13 +3,13 @@ name: Release Android APK
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
   workflow_dispatch:
     inputs:
       release_name:
-        description: 'Release name (optional)'
+        description: "Release name (optional)"
         required: false
-        default: ''
+        default: ""
 
 permissions:
   contents: write
@@ -26,29 +26,29 @@ jobs:
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
           cache: gradle
 
       - name: Set up Flutter 3.47.0
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.0'
-          channel: stable
+          flutter-version: "3.47.0"
+          channel: "stable"
           cache: true
 
-      - name: Set up Gradle 8.13
+      - name: Set up Gradle 8.14
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.13'
+          gradle-version: "8.14"
 
-      - name: Install dependencies
+      - name: Install Flutter dependencies
         run: flutter pub get
 
-      - name: Generate Gradle 8.13 wrapper
+      - name: Generate Gradle wrapper (8.14)
         working-directory: android
         run: |
-          gradle wrapper --gradle-version 8.13 --distribution-type bin
+          gradle wrapper --gradle-version 8.14 --distribution-type all
           chmod +x gradlew
           ./gradlew --version
 
@@ -63,39 +63,38 @@ jobs:
 
       - name: Decode release keystore (if configured)
         if: ${{ secrets.KEYSTORE_BASE64 != '' }}
-        shell: bash
         run: |
-          set -euo pipefail
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > upload-keystore.jks
           echo "KEYSTORE_PATH=$(pwd)/upload-keystore.jks" >> "$GITHUB_ENV"
           echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
           echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> "$GITHUB_ENV"
 
-      - name: Build split APKs
-        run: flutter build apk --release --split-per-abi --android-skip-build-dependency-validation
+      - name: Build release APK (per ABI)
+        run: flutter build apk --release --split-per-abi
 
-      - name: Build universal APK
-        run: flutter build apk --release --android-skip-build-dependency-validation
+      - name: Build release APK (universal)
+        run: flutter build apk --release
 
       - name: Build App Bundle
-        run: flutter build appbundle --release --android-skip-build-dependency-validation
+        run: flutter build appbundle --release
 
-      - name: Verify release outputs
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -s build/app/outputs/flutter-apk/app-release.apk
-          test -s build/app/outputs/bundle/release/app-release.aab
-          echo 'Release outputs:'
-          ls -lh build/app/outputs/flutter-apk/*.apk
-          ls -lh build/app/outputs/bundle/release/*.aab
-
-      - name: Determine release name
+      - name: Determine version
         id: ver
         run: echo "name=${GITHUB_REF_NAME:-manual-build}" >> "$GITHUB_OUTPUT"
 
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoiceStudio-release-${{ steps.ver.outputs.name }}
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.event.inputs.release_name || steps.ver.outputs.name }}
