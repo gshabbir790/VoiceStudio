@@ -1,13 +1,10 @@
 pluginManagement {
     def flutterSdkPath = {
         def properties = new Properties()
-        def propertiesFile = new File(rootProject.projectDir, "local.properties")
-        if (propertiesFile.exists()) {
-            propertiesFile.withReader("UTF-8") { reader -> properties.load(reader) }
-        }
-        def sdkPath = properties.getProperty("flutter.sdk")
-        assert sdkPath != null : "flutter.sdk not set in local.properties"
-        return sdkPath
+        file("local.properties").withInputStream { properties.load(it) }
+        def flutterSdkPath = properties.getProperty("flutter.sdk")
+        assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
+        return flutterSdkPath
     }()
 
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
@@ -25,5 +22,4 @@ plugins {
     id "org.jetbrains.kotlin.android" version "2.1.20" apply false
 }
 
-rootProject.name = "voice_studio"
 include ":app"
