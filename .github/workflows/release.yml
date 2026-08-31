@@ -18,7 +18,6 @@ jobs:
   build:
     name: Build & Release
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,20 +36,26 @@ jobs:
           channel: "stable"
           cache: true
 
-      - name: Set up Gradle 8.14
+      - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.14"
+          gradle-version: "9.3.1"
 
-      - name: Install Flutter dependencies
-        run: flutter pub get
+      - name: Verify toolchain
+        run: |
+          java -version
+          flutter --version
+          gradle --version
 
-      - name: Generate Gradle wrapper (8.14)
+      - name: Generate Gradle wrapper 9.3.1
         working-directory: android
         run: |
-          gradle wrapper --gradle-version 8.14 --distribution-type all
+          gradle wrapper --gradle-version 9.3.1 --distribution-type all
           chmod +x gradlew
           ./gradlew --version
+
+      - name: Install dependencies
+        run: flutter pub get
 
       - name: Generate launcher icons
         run: dart run flutter_launcher_icons
@@ -70,31 +75,29 @@ jobs:
           echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> "$GITHUB_ENV"
 
-      - name: Build release APK (per ABI)
+      - name: Build release APK (split per ABI)
         run: flutter build apk --release --split-per-abi
 
-      - name: Build release APK (universal)
+      - name: Build universal release APK
         run: flutter build apk --release
 
       - name: Build App Bundle
         run: flutter build appbundle --release
 
-      - name: Determine version
-        id: ver
-        run: echo "name=${GITHUB_REF_NAME:-manual-build}" >> "$GITHUB_OUTPUT"
-
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: VoiceStudio-release-${{ steps.ver.outputs.name }}
+          name: VoiceStudio-release
           path: |
             build/app/outputs/flutter-apk/*.apk
             build/app/outputs/bundle/release/*.aab
           if-no-files-found: error
-          retention-days: 30
+
+      - name: Determine version
+        id: ver
+        run: echo "name=${GITHUB_REF_NAME:-manual-build}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.event.inputs.release_name || steps.ver.outputs.name }}
