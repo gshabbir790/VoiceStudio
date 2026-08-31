@@ -1,6 +1,5 @@
 plugins {
     id "com.android.application"
-    id "org.jetbrains.kotlin.android"
     id "dev.flutter.flutter-gradle-plugin"
 }
 
@@ -14,13 +13,11 @@ if (localPropertiesFile.exists()) {
 }
 
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-
 if (flutterVersionCode == null) {
     flutterVersionCode = '1'
 }
 
 def flutterVersionName = localProperties.getProperty('flutter.versionName')
-
 if (flutterVersionName == null) {
     flutterVersionName = '1.0.0'
 }
@@ -36,28 +33,18 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     defaultConfig {
-        // Fixed, single source of truth for the app's identity.
-        // Must not be changed after first release.
         applicationId "com.gshabbir.voicestudio"
-
         minSdkVersion 23
         targetSdkVersion flutter.targetSdkVersion
-
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
-
         multiDexEnabled true
     }
 
     signingConfigs {
         release {
             def keystorePath = System.getenv("KEYSTORE_PATH")
-
             if (keystorePath) {
                 storeFile file(keystorePath)
                 storePassword System.getenv("KEYSTORE_PASSWORD")
@@ -69,15 +56,9 @@ android {
 
     buildTypes {
         release {
-            // Use release keystore when CI secrets are available.
-            // Otherwise fall back to debug signing.
-            signingConfig System.getenv("KEYSTORE_PATH") ?
-                    signingConfigs.release :
-                    signingConfigs.debug
-
+            signingConfig System.getenv("KEYSTORE_PATH") ? signingConfigs.release : signingConfigs.debug
             minifyEnabled true
             shrinkResources true
-
             proguardFiles(
                 getDefaultProguardFile('proguard-android-optimize.txt'),
                 'proguard-rules.pro'
@@ -97,6 +78,13 @@ android {
     lint {
         checkReleaseBuilds false
         disable 'InvalidPackage'
+    }
+}
+
+// AGP 9 uses built-in Kotlin. Do not apply org.jetbrains.kotlin.android.
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 
