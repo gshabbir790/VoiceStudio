@@ -1,7 +1,9 @@
 name: Release Android APK
 
-# Push a tag like "v1.0.0" to trigger a build + GitHub Release.
-# You can also run it manually from the Actions tab (workflow_dispatch).
+# Create a Git tag such as v1.0.0, or run this workflow manually from
+# GitHub Actions. A signed APK is produced when the release-keystore
+# secrets are configured; otherwise the APK is debug-signed for testing.
+
 on:
   push:
     tags:
@@ -18,8 +20,9 @@ permissions:
 
 jobs:
   build:
-    name: Build & Release
+    name: Build & Release Android
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,60 +32,87 @@ jobs:
         with:
           distribution: "temurin"
           java-version: "17"
+          cache: "gradle"
 
-      - name: Set up Flutter
+      - name: Set up Flutter 3.47.0
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: "3.47.0"
           channel: "stable"
           cache: true
 
-      - name: Install dependencies
+      - name: Show tool versions
+        run: |
+          flutter --version
+          dart --version
+          java -version
+
+      - name: Install Flutter dependencies
         run: flutter pub get
 
-      # The wrapper jar is intentionally not committed (see .gitignore) —
-      # generating it fresh here means the build always uses a clean,
-      # correctly-matched wrapper instead of a stale binary in git.
-      - name: Generate Gradle wrapper
+      - name: Generate Gradle wrapper 8.13
+        working-directory: android
         run: |
-          cd android
           gradle wrapper --gradle-version 8.13 --distribution-type all
           chmod +x gradlew
+          ./gradlew --version
 
       - name: Generate launcher icons
         run: dart run flutter_launcher_icons
 
-      - name: Generate native splash screen
+      - name: Generate native splash
         run: dart run flutter_native_splash:create
 
       - name: Analyze
-        run: flutter analyze --no-fatal-infos || true
+        run: flutter analyze --no-fatal-infos
 
-      - name: Decode release keystore (if configured)
+      - name: Run tests
+        run: flutter test
+
+      - name: Decode release keystore
         if: ${{ secrets.KEYSTORE_BASE64 != '' }}
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > upload-keystore.jks
-          echo "KEYSTORE_PATH=$(pwd)/upload-keystore.jks" >> "$GITHUB_ENV"
+          echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/upload-keystore.jks" >> "$GITHUB_ENV"
           echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
           echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> "$GITHUB_ENV"
 
-      - name: Build release APK (per ABI, smaller downloads)
-        run: flutter build apk --release --split-per-abi
-
-      - name: Build release APK (universal, fallback)
+      - name: Build universal release APK
         run: flutter build apk --release
 
-      - name: Build App Bundle (for Play Store)
+      - name: Build split APKs
+        run: flutter build apk --release --split-per-abi
+
+      - name: Build App Bundle
         run: flutter build appbundle --release
 
-      - name: Determine version
+      - name: Determine release name
         id: ver
-        run: echo "name=${GITHUB_REF_NAME:-manual-build}" >> "$GITHUB_OUTPUT"
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.release_name }}" ]; then
+            echo "name=${{ github.event.inputs.release_name }}" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF_NAME" == v* ]]; then
+            echo "name=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=Voice Studio manual build" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-studio-release-${{ github.run_number }}
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.event.inputs.release_name || steps.ver.outputs.name }}
+          name: ${{ steps.ver.outputs.name }}
           generate_release_notes: true
           files: |
             build/app/outputs/flutter-apk/*.apk
