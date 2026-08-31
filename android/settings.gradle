@@ -1,19 +1,24 @@
 pluginManagement {
     def flutterSdkPath = {
         def properties = new Properties()
-        def propertiesFile = new File(rootProject.projectDir, "local.properties")
+        def localPropertiesFile = new File(rootProject.projectDir, "local.properties")
 
-        if (propertiesFile.exists()) {
-            propertiesFile.withReader("UTF-8") { reader ->
-                properties.load(reader)
-            }
+        if (localPropertiesFile.exists()) {
+            localPropertiesFile.withInputStream { properties.load(it) }
         }
 
         def sdkPath = properties.getProperty("flutter.sdk")
 
-        if (sdkPath == null) {
+        // Agar local.properties mein path na mile toh environment variable use karein
+        if (sdkPath == null || sdkPath.trim().isEmpty()) {
+            sdkPath = System.getenv("FLUTTER_ROOT")
+        }
+
+        if (sdkPath == null || sdkPath.trim().isEmpty()) {
             throw new GradleException(
-                "Flutter SDK path not found. Please set flutter.sdk in android/local.properties."
+                "Flutter SDK path not found. " +
+                "Please set flutter.sdk in android/local.properties " +
+                "or define FLUTTER_ROOT environment variable."
             )
         }
 
