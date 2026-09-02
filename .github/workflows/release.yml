@@ -18,6 +18,8 @@ jobs:
   build:
     name: Build & Release
     runs-on: ubuntu-latest
+    env:
+      HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,7 +66,7 @@ jobs:
         run: flutter analyze --no-fatal-infos
 
       - name: Decode release keystore (if configured)
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        if: env.HAS_KEYSTORE == 'true'
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > upload-keystore.jks
           echo "KEYSTORE_PATH=$(pwd)/upload-keystore.jks" >> "$GITHUB_ENV"
