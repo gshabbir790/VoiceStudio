@@ -48,21 +48,15 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Generate Gradle Wrapper
-        working-directory: android
-        run: |
-          gradle wrapper --gradle-version 9.3.1 --distribution-type all
-          chmod +x gradlew
-          ./gradlew --version
-
       - name: Build Debug APK
         working-directory: android
         run: |
+          chmod +x gradlew
           ./gradlew assembleDebug --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: VoiceStudio-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: build/app/outputs/apk/debug/*.apk
           if-no-files-found: error
