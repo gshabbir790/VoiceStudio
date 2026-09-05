@@ -27,13 +27,16 @@ class GeminiTtsResult {
 /// No key ever lives in source code, build config, or a bundled asset.
 class GeminiService {
   static const _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
-  static const defaultModel = 'gemini-2.5-flash-preview-tts';
+  // Non-preview TTS endpoint. The "-preview-tts" variant has been throwing
+  // frequent 500 "internal error" responses from Google's side; this one
+  // is the more stable, generally-available replacement.
+  static const defaultModel = 'gemini-2.5-flash-tts';
 
   /// Quick round-trip that verifies a key actually works before we
   /// save it, so people get an immediate, clear error instead of a
   /// silent failure later during generation.
   Future<bool> verifyKey(String apiKey) async {
-    final uri = Uri.parse('$_baseUrl/gemini-2.5-flash-preview-tts:generateContent?key=$apiKey');
+    final uri = Uri.parse('$_baseUrl/$defaultModel:generateContent?key=$apiKey');
     try {
       final res = await http.post(
         uri,
@@ -73,44 +76,64 @@ class GeminiService {
     String model = defaultModel,
   }) async {
     final uri = Uri.parse('$_baseUrl/$model:generateContent?key=$apiKey');
+    final requestBody = jsonEncode({
+      'contents': [
+        {
+          'role': 'user',
+          'parts': [
+            {'text': text}
+          ]
+        }
+      ],
+      'systemInstruction': {
+        'parts': [
+          {'text': promptDirection}
+        ]
+      },
+      'generationConfig': {
+        'responseModalities': ['AUDIO'],
+        'speechConfig': {
+          'voiceConfig': {
+            'prebuiltVoiceConfig': {'voiceName': voiceName}
+          }
+        },
+        'temperature': 0.7,
+      },
+    });
 
-    http.Response res;
-    try {
-      res = await http
-          .post(
-            uri,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'contents': [
-                {
-                  'role': 'user',
-                  'parts': [
-                    {'text': text}
-                  ]
-                }
-              ],
-              'systemInstruction': {
-                'parts': [
-                  {'text': promptDirection}
-                ]
-              },
-              'generationConfig': {
-                'responseModalities': ['AUDIO'],
-                'speechConfig': {
-                  'voiceConfig': {
-                    'prebuiltVoiceConfig': {'voiceName': voiceName}
-                  }
-                },
-                'temperature': 0.7,
-              },
-            }),
-          )
-          .timeout(const Duration(seconds: 90));
-    } on SocketException {
-      throw GeminiTtsException('No internet connection. Please check your network and try again.');
-    } catch (e) {
-      throw GeminiTtsException('Network error: $e');
+    // The Gemini TTS endpoints are prone to transient 500/503 "internal
+    // error" / "overloaded" responses that clear up on retry within a
+    // second or two. Retry a few times with a short backoff before
+    // surfacing the error to the user.
+    const maxAttempts = 3;
+    http.Response? res;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        res = await http
+            .post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: requestBody,
+            )
+            .timeout(const Duration(seconds: 90));
+      } on SocketException {
+        throw GeminiTtsException('No internet connection. Please check your network and try again.');
+      } catch (e) {
+        if (attempt == maxAttempts) {
+          throw GeminiTtsException('Network error: $e');
+        }
+        await Future.delayed(Duration(seconds: attempt * 2));
+        continue;
+      }
+
+      final isRetryableStatus = res.statusCode == 500 || res.statusCode == 503;
+      if (isRetryableStatus && attempt < maxAttempts) {
+        await Future.delayed(Duration(seconds: attempt * 2));
+        continue;
+      }
+      break;
     }
+    res!;
 
     final Map<String, dynamic> body = _safeDecode(res.body);
 
